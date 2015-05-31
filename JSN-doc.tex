@@ -1,0 +1,80 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[czech]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage[left=2cm,right=2cm,top=2.5cm,bottom=2cm]{geometry}
+\author{Stanislav Nechutný}
+\begin{document}
+Dokumentace úlohy JSN: JSON2XML v~PHP 5 do IPP 2014/2015
+
+Jméno a příjmení: Stanislav Nechutný
+
+Login: xnechu01
+
+\section{Základní návrh}
+	Pro implementaci byl zvolen objektový návrh a pro zpracování chyb výjimky, které zajišťují zpřehlednění a zkrácení kódu.
+	
+	\textbf{Tok programu je navržen:} Načtení argumentů $\rightarrow$ Načtení souboru $\rightarrow$ Načtení JSONu $\rightarrow$ Vytvoření struktury objektů pro vnitřní reprezentaci dat $\rightarrow$ Serializace do XML $\rightarrow$ Zápis do souboru
+	
+	Celý tok programu může být v~jakémkoliv stádiu provádění přerušen vyvoláním výjimky. V~takovém případě je výjimka odchycena, zobrazena příslušná chybová zpráva na standardní chybový výstup a program ukončen s~odpovídajícím návratovým kódem.
+	
+\section{Zpracování argumentů}
+	Pro zpracování argumentů spouštěného programu byla vytvořena statická třída \textit{arguments}, která se stará o~jejich načtení, validaci a zpřístupnění zbytku programu při jeho běhu.
+	
+	Metoda \textit{load} iteruje nad argumenty programu, předanými jako pole, a provádí jejich kontrolu. V~případě opakované deklarace, nevalidní hodnoty, či nedovolené kombinace vyhodí výjimku.
+	
+	Načtené hodnoty jsou po dobu vykonávání programu dostupné přes tzv. gettery, které zohledňují, zda byla hodnota nastavena, nebo zda se má použít výchozí hodnota.
+	
+\section{Práce se souborem}
+	Pro práci se soubory (čtení a zápis) je vytvořena statická třída \textit{file} s~metodami \textit{read} a \textit{write}, které provádí zápis/čtení do souboru. V~případě problémů s~prováděním operací dojde k~vyhození výjimky.
+	
+\section{JSON}
+	Třída implementující funkci pro načtení řetězce do struktury. Pro načtení dat je použita funkce \textit{json\_decode}. Problémem je, že funkce \textit{json\_decode} pro JSON řetězec \textit{"null"}\ vrací správně načtenou hodnotu, která je stejná s~chybovou hodnotou. Z~toho důvodu je zde přidána kontrola na tuto hodnotu.
+	
+\section{Vnitřní struktura reprezentace dat}
+	Pro reprezentaci dat je vytvořena třída \textit{XMLElement}, která ve svém konstruktoru přijímá jméno hodnoty, smíšená data (pole, objekty, literály atd.) a volitelně úroveň odsazení. Konstruktor provede nastavení vlastností objektu a v~případě objektů a polí provede rekurzivně vytvoření dalších podřazených instancí.
+	
+\section{Serializace do XML}
+	Pro serializaci dat implementuje třída \textit{XMLElement} metodu \textit{output}, která vrací řetězec obsahující XML řetězec reprezentující všechny vnořené elementy. Implementace takové metody je řešena rekurzivním voláním stejné metody na podčlenech a konkatenace výsledků.
+	
+	Při generování serializovaných dat je použita metoda \textit{escapeTagName}, \textit{escapeValue} a \textit{indent}, které oddělují logické části a zajištují generování validního a přehledného výstupu.
+	
+	Ošetření názvu XML elementu je prováděno pomocí regulérního výrazu, který provede nahrazení nepovolených znaků na daných místech a následně zkontroluje validitu. V~případě nevalidního výsledného souboru dojde k~vyvolání výjimky.
+	
+	Hodnota a její správné zformátování na výstup je zajištěno metodou \textit{escapeValue}, která na základě argumentů provede nahrazení problematických znaků, zaokrouhlení desetinných čísel, či nahrazení literálů za jejich textovou reprezentaci.
+	
+	Pro implementaci serializace nemohla být použita metoda \textit{\_\_toString}, jelikož v~této metodě není dovoleno vyvolání výjimky a nebylo by tedy možné vhodně zajistit všechna předepsaná chování.
+	
+\section{Rozšíření}
+	Pro projekt byla implementována veškerá rozšíření.
+
+	\subsection{JPD (0,5b) - Doplnění nul}
+		Pro implementaci tohoto rozšíření bylo v~třídě \textit{XMLElement} přidáno doplnění nul zleva za použití funkce \textit{str\_pad}. Výpočet minimálního nutného počtu nul je proveden funkcí \textit{strlen}, které je předáno číslo získané z~součtu počátečního indexu pole s~počtem prvků v~poli - 1.
+		
+	\subsection{FLA (1.0b) - Zploštění}
+		Pro implementaci tohoto rozšíření byla vytvořen třída \textit{flat}, která obsahuje kromě konstruktoru pro načtení dat a metody \textit{output}, pro získání zploštělého výsledku, také metodu pro rekurzivní průchod a funkci pro porovnání hodnot.
+		
+		Rekurzivní průchod všemi prvky vstupu je zajištěn metodou \textit{recursiveWalk}, která na základě klíče, hodnoty a již zploštělého výsledku provede příslušné přidání. 
+		
+		Pro korektní řazení hodnot, kdy se řadí literály, čísla i řetězce dle zadané priority je implementována metoda \textit{cmp}, která je navržena, aby ji bylo možné použít ve vestavěné funkci \textit{usort}.
+		
+	\subsection{JER (1.0b) - Oprava chyb JSON}
+		Pro opravu chyb ve vstupním JSONu byla metoda \textit{decode} třídy \textit{json} rozšířena o~parametr fix, který v~případě pravdivé hodnoty zajistí spuštění opravy.
+		Opravované chyby:
+			
+			- Index není umístěn v~uvozovkách.
+			
+			- Chybějící uvozovka na konci řádku.
+			
+			- Přebývající čárka před znaky ], nebo \}.
+			
+			- Chybějící čárka mezi dvěmi řetězci v~poli.
+			
+			- Chybějící uvozovka za dvojtečkou v~případě řetězce.
+			
+			- Doplnění chybějících ] a \} na konci JSON řetězce.
+
+\end{document}
